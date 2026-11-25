@@ -37,7 +37,7 @@ input[type=text]{width:100%;font:inherit;padding:10px 12px;border:2px solid #aab
 .error{color:#a12d12;font-weight:600;margin-top:8px}
 .codigo{background:#f1f3ef;border:1px dashed #8a9a8f;border-radius:8px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;word-break:break-word}
 .estado{margin-top:8px;font-weight:600;color:var(--verde)}
-.pie{font-size:.85rem;color:#46564e;margin-top:20px}
+.pie{font-size:.8rem;color:#46564e;margin-top:20px}
 </style>
 </head>
 <body>
@@ -302,24 +302,38 @@ render();
 
 // ---- Voz (síntesis del navegador) ----
 function vozDisponible() { return 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window; }
+// Solo para la voz: el texto en pantalla no cambia.
+function aVoz(t) {
+  return String(t)
+    .replace(/(\d+(?:[.,]\d+)?)\s*%/g, '$1 por ciento')
+    .replace(/\bLIE\b/g, 'límite inferior de explosividad');
+}
+
 function hablar(texto) {
   if (!vozDisponible()) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(texto);
-  u.lang = 'es-AR';
-  const vs = window.speechSynthesis.getVoices();
+  const ss = window.speechSynthesis;
+  ss.cancel();
+  const vs = ss.getVoices();
   const v = vs.find(x => x.lang === 'es-AR') || vs.find(x => x.lang && x.lang.toLowerCase().startsWith('es'));
-  if (v) u.voice = v;
-  u.rate = 0.95;
-  window.speechSynthesis.speak(u);
+  // Se lee por frases: evita que algunos navegadores corten las lecturas largas.
+  const partes = aVoz(texto).match(/[^.!?]+[.!?]*/g) || [];
+  partes.forEach(p => {
+    if (!p.trim()) return;
+    const u = new SpeechSynthesisUtterance(p.trim());
+    u.lang = 'es-AR';
+    if (v) u.voice = v;
+    u.rate = 0.95;
+    ss.speak(u);
+  });
 }
 function detener() { if (vozDisponible()) window.speechSynthesis.cancel(); }
 function escucharPantalla() {
   const nodo = SIM.nodos[estado.nodo];
-  let t = nodo.titulo + '. ' + nodo.voz;
+  let t = nodo.titulo + '. ' + (nodo.voz || nodo.texto);
   if (!nodo.final) t += ' ' + nodo.opciones.map(o => 'Opción ' + o.id + ': ' + o.texto + '.').join(' ');
   hablar(t);
 }
+window.addEventListener('pagehide', detener);
 
 // ---- Registro de resultados ----
 function datosRegistro() {
